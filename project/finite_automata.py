@@ -8,8 +8,6 @@ from pyformlang.finite_automaton import (
 from .graph_utils import graph_to_nfa
 from .regex_utils import regex_to_dfa
 
-import numpy.typing as np_type
-import numpy as np
 import scipy.sparse as scpy
 from scipy.sparse.linalg import matrix_power
 
@@ -69,19 +67,17 @@ class AdjacencyMatrixFA:
 
         return False
 
-    def transitive_closure(self) -> np_type.NDArray[np.bool_]:
-        result = np.eye(self.count_states, dtype=bool)
+    def transitive_closure(self) -> scpy.csr_matrix:
+        result: scpy.csr_matrix = scpy.csr_matrix(
+            (self.count_states, self.count_states), dtype=bool
+        )
+        for i in range(self.count_states):
+            result[i, i] = True
 
         for adj_matrix in self.adj_matrix.values():
-            result = result | adj_matrix.toarray()
+            result = result + adj_matrix
 
-        for i in range(2, self.count_states + 1):
-            result_after = matrix_power(result, i)
-            if np.array_equal(result, result_after):
-                return result
-            result = result_after
-
-        return result
+        return matrix_power(result, self.count_states)
 
     def is_empty(self) -> bool:
         transitive_closure = self.transitive_closure()
