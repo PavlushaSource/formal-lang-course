@@ -162,42 +162,43 @@ def tensor_based_rpq(
 def ms_bfs_based_rpq(
     regex: str, graph: MultiDiGraph, start_nodes: set[int], final_nodes: set[int]
 ) -> set[tuple[int, int]]:
-    result = set()
     regex_dfa = regex_to_dfa(regex)
     graph_nfa = graph_to_nfa(graph, start_nodes, final_nodes)
 
     nfa = AdjacencyMatrixFA(graph_nfa)
+    dfa = AdjacencyMatrixFA(regex_dfa)
+    symbols = dfa.adj_matrix.keys() & nfa.adj_matrix.keys()
+
     nfa_final_states_ind_to_state = {
-        index: state
-        for state, index in nfa.states.items()
-        if state in final_nodes
+        index: state for state, index in nfa.states.items() if state in final_nodes
     }
 
-    dfa = AdjacencyMatrixFA(regex_dfa)
-
-    symbols = dfa.adj_matrix.keys() & nfa.adj_matrix.keys()
-    start_nodes_enum = {i: st_node for i, st_node in enumerate(start_nodes)}
-    front = init_front(start_nodes_enum, nfa, dfa)
+    start_nodes_enumerate = {i: st_node for i, st_node in enumerate(start_nodes)}
+    front = init_front(start_nodes_enumerate, nfa, dfa)
     visited = front
 
     transpose_dfa = {
-        sym: matrix.transpose() for sym, matrix in dfa.adj_matrix.items() if sym in symbols
+        sym: matrix.transpose()
+        for sym, matrix in dfa.adj_matrix.items()
+        if sym in symbols
     }
     k = dfa.count_states
 
     while front.sum() > 0:
-        fronts = {
-            sym: front @ nfa.adj_matrix[sym] for sym in symbols
-        }
+        fronts = {sym: front @ nfa.adj_matrix[sym] for sym in symbols}
 
-        fronts = {sym: mult_with_transpose(transpose_dfa[sym], fronts[sym], len(start_nodes), k) for sym in symbols}
+        fronts = {
+            sym: mult_with_transpose(
+                transpose_dfa[sym], fronts[sym], len(start_nodes), k
+            )
+            for sym in symbols
+        }
 
         front = reduce(lambda x, y: x + y, fronts.values(), front)
         front = front > visited
         visited = visited + front
 
-
-
+    result = set()
     for i in range(len(start_nodes)):
         slice_visited = visited[i * k : (i + 1) * k]
 
@@ -207,7 +208,10 @@ def ms_bfs_based_rpq(
             for column in slice_visited.getrow(ind).indices:
                 if column in nfa_final_states_ind_to_state.keys():
                     result.add(
-                        (start_nodes_enum[i], nfa_final_states_ind_to_state[column])
+                        (
+                            start_nodes_enumerate[i],
+                            nfa_final_states_ind_to_state[column],
+                        )
                     )
 
     return result
