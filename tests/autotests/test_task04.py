@@ -11,7 +11,7 @@ from rpq_concrete_cases import CASES_RPQ, CaseRPQ
 
 # Fix import statements in try block to run tests
 try:
-    from project.finite_automata import tensor_based_rpq, ms_bfs_based_rpq
+    from project.rpq import tensor_based_rpq, ms_bfs_based_rpq
 except ImportError:
     pytestmark = pytest.mark.skip("Task 4 is not ready to test!")
 
