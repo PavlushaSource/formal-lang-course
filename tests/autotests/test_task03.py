@@ -16,8 +16,8 @@ try:
     from project.finite_automata import (
         AdjacencyMatrixFA,
         intersect_automata,
-        tensor_based_rpq,
     )
+    from project.rpq import tensor_based_rpq
 except ImportError:
     pytestmark = pytest.mark.skip("Task 3 is not ready to test!")
 
