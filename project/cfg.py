@@ -1,7 +1,8 @@
-from typing import List
+from typing import List, Set
 import pyformlang.cfg
 from pyformlang.cfg import Epsilon
 import networkx as nx
+import scipy.sparse as scpy
 
 
 def cfg_to_weak_normal_form(cfg: pyformlang.cfg.CFG) -> pyformlang.cfg.CFG:
@@ -112,3 +113,69 @@ def label_to_variables(
 
 def body_to_head(wcnf: pyformlang.cfg.CFG, body):
     return {prod.head for prod in wcnf.productions if prod.body == body}
+
+
+def matrix_based_cfpq(
+    cfg: pyformlang.cfg.CFG,
+    graph: nx.DiGraph,
+    start_nodes: Set[int] = None,
+    final_nodes: Set[int] = None,
+) -> set[tuple[int, int]]:
+    wcnf = cfg_to_weak_normal_form(cfg)
+
+    n = graph.number_of_nodes()
+    bool_matrices: dict[any, scpy.csr_matrix] = {
+        var: scpy.csr_matrix((n, n), dtype=bool) for var in wcnf.variables
+    }
+
+    index_to_node = {i: node for i, node in enumerate(graph.nodes)}
+    node_to_index = {node: i for i, node in index_to_node.items()}
+
+    for u, v, label in graph.edges(data="label"):
+        index_u, index_v = node_to_index[u], node_to_index[v]
+        for var in label_to_variables(wcnf, label):
+            bool_matrices[var][index_u, index_v] = True
+
+    nullable = wcnf.get_nullable_symbols()
+    for var in nullable:
+        for node in graph.nodes:
+            index = node_to_index[node]
+            bool_matrices[var][index, index] = True
+
+    m = list(wcnf.variables)
+
+    while m:
+        updated_not_terminal = m.pop(0)
+        for production in wcnf.productions:
+            if updated_not_terminal in production.body:
+                matrix_only_new_edges: scpy.csr_matrix = (
+                    bool_matrices[production.body[0]]
+                    @ bool_matrices[production.body[1]]
+                )
+                prev_count_value = bool_matrices[production.head].count_nonzero()
+                bool_matrices[production.head] += matrix_only_new_edges
+                curr_count_value = bool_matrices[production.head].count_nonzero()
+                if prev_count_value < curr_count_value:
+                    m.append(production.head)
+
+    ans = set()
+
+    start_symbol = wcnf.start_symbol
+
+    # maybe check not needed, need to see if the start symbol is included in wcnf.variables
+    if start_symbol not in bool_matrices.keys():
+        return ans
+
+    r = bool_matrices[start_symbol]
+
+    for i in range(n):
+        for j in range(n):
+            u, v = index_to_node[i], index_to_node[j]
+            if (
+                r[i, j]
+                and (not start_nodes or u in start_nodes)
+                and (not final_nodes or v in final_nodes)
+            ):
+                ans.add((u, v))
+
+    return ans
